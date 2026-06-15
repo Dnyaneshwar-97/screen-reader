@@ -4,25 +4,28 @@ from __future__ import annotations
 
 import streamlit as st
 
+from config.settings import READING_MODES
 from utils.accessibility import (
     announce_message,
     inject_keyboard_shortcuts,
     inject_skip_link,
     render_content_html,
+    render_image_html,
     render_sentences_html,
+    render_words_html,
 )
 from utils.bookmarks import delete_bookmark, has_bookmark, restore_bookmark, save_bookmark
 from utils.navigator import Navigator
 from utils.parser import Book
+from utils.preferences import save_preferences_to_url
+from utils.table_reader import format_table_html
 from utils.theme import apply_theme, init_theme_state
-from utils.tts_engine import audio_player_html, generate_speech
+from utils.tts_engine import audio_player_html, export_text_as_mp3, generate_speech
 
 init_theme_state()
 apply_theme()
 inject_skip_link()
 inject_keyboard_shortcuts()
-
-READING_MODES = ("sentence", "paragraph")
 
 
 def _init_reader_state() -> None:
@@ -30,12 +33,14 @@ def _init_reader_state() -> None:
         "tts_playing": False,
         "tts_audio": None,
         "tts_cache_key": None,
-        "reading_mode": "sentence",
         "current_book_name": None,
+        "export_audio": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+    if "reading_mode" not in st.session_state:
+        st.session_state.reading_mode = "sentence"
 
 
 def _ensure_book_loaded() -> Book | None:
@@ -61,6 +66,40 @@ def _reset_tts() -> None:
     st.session_state.tts_playing = False
     st.session_state.tts_audio = None
     st.session_state.tts_cache_key = None
+
+
+def _tts_kwargs() -> dict[str, str | float]:
+    return {
+        "language": st.session_state.get("tts_language", "en"),
+        "tld": st.session_state.get("tts_tld", "com"),
+    }
+
+
+def _navigate_prev(nav: Navigator) -> None:
+    mode = st.session_state.reading_mode
+    if mode == "word":
+        nav.previous_word()
+    elif mode == "sentence":
+        nav.previous_sentence()
+    elif nav.current_node and nav.current_node.type == "table":
+        if nav.position.table_row_index > 0:
+            nav.position.table_row_index -= 1
+        else:
+            nav.previous_node()
+    else:
+        nav.previous_node()
+
+
+def _navigate_next(nav: Navigator) -> None:
+    mode = st.session_state.reading_mode
+    if mode == "word":
+        nav.next_word()
+    elif mode == "sentence":
+        nav.next_sentence()
+    elif nav.current_node and nav.current_node.type == "table":
+        nav.next_table_row()
+    else:
+        nav.next_node()
 
 
 def _render_sidebar(nav: Navigator, book_name: str) -> None:
@@ -108,6 +147,28 @@ def _render_sidebar(nav: Navigator, book_name: str) -> None:
         st.progress(nav.progress_in_chapter(), text="Chapter progress")
 
         st.markdown("---")
+        st.subheader("Export Audio")
+        chapter_text = nav.chapter_tts_text()
+        if chapter_text and st.button("Generate chapter MP3", use_container_width=True):
+            with st.spinner("Generating chapter audio (may take a while)..."):
+                st.session_state.export_audio = export_text_as_mp3(
+                    chapter_text,
+                    language=st.session_state.get("tts_language", "en"),
+                    tld=st.session_state.get("tts_tld", "com"),
+                    speed=st.session_state.get("speech_speed", 1.0),
+                )
+        if st.session_state.get("export_audio"):
+            chapter = nav.current_chapter
+            fname = f"{chapter.title if chapter else 'chapter'}.mp3".replace(" ", "_")
+            st.download_button(
+                "⬇️ Download chapter MP3",
+                data=st.session_state.export_audio,
+                file_name=fname,
+                mime="audio/mpeg",
+                use_container_width=True,
+            )
+
+        st.markdown("---")
         st.subheader("Bookmark")
         if has_bookmark(book_name):
             from utils.bookmarks import get_bookmark
@@ -136,7 +197,6 @@ def _shortcut_button(label: str, action_key: str, help_id: str) -> bool:
 
 
 def _handle_shortcuts(nav: Navigator) -> None:
-    """Compact shortcut-trigger buttons (also activated via keyboard)."""
     cols = st.columns(10)
     shortcuts = [
         ("▶️", "sc_play", "btn-play-pause"),
@@ -162,17 +222,11 @@ def _execute_shortcut(action_key: str, nav: Navigator) -> None:
     elif action_key == "sc_stop":
         _reset_tts()
     elif action_key == "sc_prev":
-        if st.session_state.reading_mode == "sentence":
-            nav.previous_sentence()
-        else:
-            nav.previous_node()
+        _navigate_prev(nav)
         _reset_tts()
         st.rerun()
     elif action_key == "sc_next":
-        if st.session_state.reading_mode == "sentence":
-            nav.next_sentence()
-        else:
-            nav.next_node()
+        _navigate_next(nav)
         _reset_tts()
         st.rerun()
     elif action_key == "sc_prev_h":
@@ -185,9 +239,11 @@ def _execute_shortcut(action_key: str, nav: Navigator) -> None:
         st.rerun()
     elif action_key == "sc_font_dec":
         st.session_state.font_size = max(12, st.session_state.font_size - 2)
+        save_preferences_to_url()
         st.rerun()
     elif action_key == "sc_font_inc":
         st.session_state.font_size = min(36, st.session_state.font_size + 2)
+        save_preferences_to_url()
         st.rerun()
     elif action_key == "sc_bookmark":
         save_bookmark(nav, _book_name())
@@ -195,13 +251,59 @@ def _execute_shortcut(action_key: str, nav: Navigator) -> None:
     elif action_key == "sc_theme":
         from utils.theme import cycle_theme
         st.session_state.theme = cycle_theme(st.session_state.theme)
+        save_preferences_to_url()
         st.rerun()
 
 
 def _get_tts_text(nav: Navigator) -> str:
-    if st.session_state.reading_mode == "sentence":
+    mode = st.session_state.reading_mode
+    node = nav.current_node
+    if not node:
+        return ""
+
+    if node.type in {"image", "table"}:
+        return nav.tts_text
+
+    if mode == "word":
+        return nav.current_word
+    if mode == "sentence":
         return nav.current_sentence
     return nav.current_text
+
+
+def _render_node_content(nav: Navigator, node, reading_mode: str) -> None:
+    if node.type == "image":
+        st.markdown(
+            render_image_html(node.alt_text or node.text, node.alt_text),
+            unsafe_allow_html=True,
+        )
+        return
+
+    if node.type == "table":
+        st.markdown(
+            f'<div class="reader-content">{format_table_html(node, nav.position.table_row_index)}</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    if reading_mode == "word":
+        words = nav.current_words
+        st.markdown(
+            render_words_html(words, nav.position.word_index),
+            unsafe_allow_html=True,
+        )
+    elif reading_mode == "sentence":
+        sentences = nav.current_sentences
+        st.markdown(
+            render_sentences_html(sentences, nav.position.sentence_index, node.type),
+            unsafe_allow_html=True,
+        )
+    else:
+        highlighted = st.session_state.get("tts_playing", False)
+        st.markdown(
+            render_content_html(node.html, highlighted=highlighted),
+            unsafe_allow_html=True,
+        )
 
 
 def main() -> None:
@@ -226,23 +328,32 @@ def main() -> None:
     st.subheader(book.title)
     st.caption(f"Chapter: {chapter.title}")
 
-    mode_col, info_col = st.columns([2, 3])
+    mode_col, lang_col, info_col = st.columns([2, 2, 2])
     with mode_col:
         reading_mode = st.radio(
             "Reading mode",
             options=READING_MODES,
-            format_func=lambda m: "Sentence-by-sentence" if m == "sentence" else "Paragraph-by-paragraph",
+            format_func=lambda m: {
+                "sentence": "Sentence",
+                "paragraph": "Paragraph",
+                "word": "Word-by-word",
+            }.get(m, m),
             index=READING_MODES.index(st.session_state.reading_mode),
             horizontal=True,
             key="reading_mode_radio",
         )
         st.session_state.reading_mode = reading_mode
+    with lang_col:
+        st.caption(f"Language: {st.session_state.get('tts_language', 'en').upper()}")
+        st.caption(f"Voice: {st.session_state.get('tts_tld', 'com')}")
     with info_col:
-        sentences = nav.current_sentences
-        if reading_mode == "sentence" and sentences:
-            st.caption(
-                f"Sentence {nav.position.sentence_index + 1} of {len(sentences)}"
-            )
+        if reading_mode == "word" and nav.current_words:
+            st.caption(f"Word {nav.position.word_index + 1} of {len(nav.current_words)}")
+        elif reading_mode == "sentence" and nav.current_sentences:
+            st.caption(f"Sentence {nav.position.sentence_index + 1} of {len(nav.current_sentences)}")
+        elif node.type == "table":
+            rows = [r for r in node.children if r.type == "table_row"]
+            st.caption(f"Table row {nav.position.table_row_index + 1} of {len(rows)}")
 
     ctrl1, ctrl2, ctrl3, ctrl4 = st.columns([1, 1, 1, 2])
     with ctrl1:
@@ -268,18 +379,12 @@ def main() -> None:
     nav1, nav2, nav3, nav4, nav5 = st.columns(5)
     with nav1:
         if st.button("⬅️ Previous", key="prev_btn", help="btn-prev", use_container_width=True):
-            if reading_mode == "sentence":
-                nav.previous_sentence()
-            else:
-                nav.previous_node()
+            _navigate_prev(nav)
             _reset_tts()
             st.rerun()
     with nav2:
         if st.button("➡️ Next", key="next_btn", help="btn-next", use_container_width=True):
-            if reading_mode == "sentence":
-                nav.next_sentence()
-            else:
-                nav.next_node()
+            _navigate_next(nav)
             _reset_tts()
             st.rerun()
     with nav3:
@@ -293,37 +398,35 @@ def main() -> None:
             _reset_tts()
             st.rerun()
     with nav5:
-        if st.button("⏭️ Next Sentence", key="next_sent_btn", use_container_width=True):
-            nav.next_sentence()
+        label = "⏭️ Next Word" if reading_mode == "word" else "⏭️ Next Sentence"
+        if st.button(label, key="next_unit_btn", use_container_width=True):
+            _navigate_next(nav)
             _reset_tts()
             st.rerun()
 
     _handle_shortcuts(nav)
 
     st.markdown('<div id="reader-main-content"></div>', unsafe_allow_html=True)
-
-    if reading_mode == "sentence" and sentences:
-        st.markdown(
-            render_sentences_html(sentences, nav.position.sentence_index, node.type),
-            unsafe_allow_html=True,
-        )
-    else:
-        highlighted = st.session_state.get("tts_playing", False)
-        st.markdown(
-            render_content_html(node.html, highlighted=highlighted),
-            unsafe_allow_html=True,
-        )
+    _render_node_content(nav, node, reading_mode)
 
     tts_text = _get_tts_text(nav)
     if st.session_state.get("tts_playing", False) and tts_text:
         cache_key = (
             f"tts_{nav.position.chapter_index}_{nav.position.node_index}_"
-            f"{nav.position.sentence_index}_{reading_mode}"
+            f"{nav.position.sentence_index}_{nav.position.word_index}_"
+            f"{nav.position.table_row_index}_{reading_mode}_"
+            f"{st.session_state.get('tts_language')}_{st.session_state.get('tts_tld')}"
         )
         if st.session_state.get("tts_cache_key") != cache_key:
             with st.spinner("Generating speech..."):
                 from utils.tts_engine import adjust_speed
-                audio = generate_speech(tts_text, slow=st.session_state.speech_speed < 0.85)
+                kwargs = _tts_kwargs()
+                audio = generate_speech(
+                    tts_text,
+                    language=str(kwargs["language"]),
+                    tld=str(kwargs["tld"]),
+                    slow=st.session_state.speech_speed < 0.85,
+                )
                 speed = st.session_state.get("speech_speed", 1.0)
                 if speed != 1.0 and speed >= 0.85:
                     audio = adjust_speed(audio, speed)

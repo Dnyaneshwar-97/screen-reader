@@ -7,10 +7,12 @@ import pytest
 from utils.tts_engine import (
     adjust_speed,
     audio_to_base64,
+    export_text_as_mp3,
     generate_chunks,
     generate_speech,
     split_into_sentences,
     split_raw_sentences,
+    split_raw_words,
 )
 
 FAKE_MP3 = b"\xff\xfb\x90\x00" + b"\x00" * 100
@@ -33,6 +35,10 @@ class TestSplitSentences:
     def test_raw_sentences(self):
         result = split_raw_sentences("First sentence. Second sentence! Third?")
         assert len(result) == 3
+
+    def test_raw_words(self):
+        result = split_raw_words("The quick brown fox")
+        assert result == ["The", "quick", "brown", "fox"]
 
     def test_multiple_sentences(self):
         result = split_into_sentences("First sentence. Second sentence! Third?")
@@ -88,6 +94,13 @@ class TestGenerateChunks:
         chunks = generate_chunks("One. Two. Three.")
         indices = [c.index for c in chunks]
         assert indices == list(range(len(chunks)))
+
+
+class TestExportAudio:
+    def test_export_single_chunk(self, mock_gtts):
+        audio = export_text_as_mp3("Hello world.")
+        assert isinstance(audio, bytes)
+        assert len(audio) > 0
 
 
 class TestBase64:

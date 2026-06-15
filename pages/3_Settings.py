@@ -1,4 +1,4 @@
-"""Accessibility preferences: themes, font size, and speech settings."""
+"""Accessibility preferences: themes, font size, speech, and language settings."""
 
 import streamlit as st
 
@@ -7,8 +7,12 @@ from config.settings import (
     MAX_SPEECH_SPEED,
     MIN_FONT_SIZE,
     MIN_SPEECH_SPEED,
+    READING_MODES,
     THEMES,
+    TTS_LANGUAGES,
+    TTS_VOICES,
 )
+from utils.preferences import save_preferences_to_url
 from utils.theme import THEME_LABELS, apply_theme, cycle_theme, init_theme_state
 
 init_theme_state()
@@ -40,14 +44,15 @@ def main() -> None:
     st.session_state.font_size = font_size
 
     use_dyslexic = st.checkbox(
-        "Use dyslexia-friendly font",
+        "Use dyslexia-friendly font (OpenDyslexic)",
         value=st.session_state.get("use_dyslexic_font", False),
-        help="Uses OpenDyslexic-style font for easier reading.",
+        help="Uses OpenDyslexic font for easier reading.",
     )
     st.session_state.use_dyslexic_font = use_dyslexic
 
     if st.button("Cycle Theme (T)"):
         st.session_state.theme = cycle_theme(st.session_state.theme)
+        save_preferences_to_url()
         st.rerun()
 
     st.markdown("---")
@@ -63,13 +68,47 @@ def main() -> None:
     )
     st.session_state.speech_speed = speech_speed
 
+    language = st.selectbox(
+        "TTS language",
+        options=list(TTS_LANGUAGES.keys()),
+        index=list(TTS_LANGUAGES.keys()).index(st.session_state.get("tts_language", "en")),
+        format_func=lambda code: TTS_LANGUAGES[code],
+        help="Select language for text-to-speech (Hindi, Marathi, and more).",
+    )
+    st.session_state.tts_language = language
+
+    voice = st.selectbox(
+        "Voice / accent",
+        options=list(TTS_VOICES.keys()),
+        index=list(TTS_VOICES.keys()).index(st.session_state.get("tts_tld", "com")),
+        format_func=lambda tld: TTS_VOICES[tld],
+        help="Choose voice accent variant. Use 'co.in' for Indian languages.",
+    )
+    st.session_state.tts_tld = voice
+
+    reading_mode = st.selectbox(
+        "Default reading mode",
+        options=READING_MODES,
+        index=READING_MODES.index(st.session_state.get("reading_mode", "sentence")),
+        format_func=lambda m: {
+            "sentence": "Sentence-by-sentence",
+            "paragraph": "Paragraph-by-paragraph",
+            "word": "Word-by-word (learning)",
+        }.get(m, m),
+    )
+    st.session_state.reading_mode = reading_mode
+
+    if st.button("Save preferences to URL", type="primary"):
+        save_preferences_to_url()
+        st.success("Preferences saved to URL. Bookmark this page to keep your settings.")
+
     st.markdown("---")
     st.subheader("Theme Preview")
 
     apply_theme(st.session_state.theme, st.session_state.font_size)
 
     st.markdown(
-        f"""
+        """
         <div class="reader-content">
             <h2>Sample Heading</h2>
             <p>This is a preview of how text will appear with your current settings.
@@ -95,6 +134,7 @@ def main() -> None:
 | `Shift+H` | Previous heading |
 | `+` / `-` | Font size up / down |
 | `T` | Cycle theme |
+| `B` | Save bookmark |
 | `1-9` | Jump to chapter |
         """
     )

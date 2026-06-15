@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from config.settings import DEFAULT_FONT_SIZE, DEFAULT_THEME, THEMES
+from utils.preferences import init_preferences
 
 THEME_STYLES: dict[str, dict[str, str]] = {
     "default_light": {
@@ -130,6 +131,45 @@ def get_theme_css(theme_name: str, font_size: int, use_dyslexic_font: bool = Fal
         -webkit-box-decoration-break: clone;
     }}
 
+    .reader-word-highlight {{
+        background-color: var(--reader-highlight) !important;
+        padding: 4px 8px;
+        border-radius: 4px;
+        outline: 3px solid var(--reader-accent);
+        font-weight: 700;
+        font-size: 1.1em;
+    }}
+
+    .reader-table {{
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1em 0;
+    }}
+
+    .reader-table td, .reader-table th {{
+        border: 2px solid var(--reader-accent);
+        padding: 0.75rem;
+        text-align: left;
+    }}
+
+    .reader-table-row-active {{
+        background-color: var(--reader-highlight) !important;
+        outline: 3px solid var(--reader-accent);
+    }}
+
+    .reader-image {{
+        border: 2px solid var(--reader-accent);
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1em 0;
+        text-align: center;
+    }}
+
+    .reader-image-placeholder {{
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+    }}
+
     .reader-progress-label {{
         font-size: 0.9rem;
         color: var(--reader-text);
@@ -185,12 +225,4 @@ def cycle_theme(current: str) -> str:
 
 def init_theme_state() -> None:
     """Initialize theme-related session state defaults."""
-    defaults = {
-        "theme": DEFAULT_THEME,
-        "font_size": DEFAULT_FONT_SIZE,
-        "use_dyslexic_font": False,
-        "speech_speed": 1.0,
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+    init_preferences()

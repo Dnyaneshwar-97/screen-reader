@@ -115,3 +115,24 @@ class TestNavigator:
         label = self.nav.progress_label()
         assert "Book" in label
         assert "Chapter" in label
+
+    def test_current_words(self):
+        self.nav.position.node_index = 1
+        words = self.nav.current_words
+        assert len(words) >= 3
+
+    def test_next_word(self):
+        self.nav.position.node_index = 1
+        assert self.nav.next_word()
+        assert self.nav.position.word_index == 1
+
+    def test_tts_text_image(self):
+        image = ContentNode(type="image", level=0, text="Diagram", html="<img>", alt_text="A diagram of cells")
+        self.nav.book.chapters[0].nodes.append(image)
+        self.nav.go_to_node(0, len(self.nav.book.chapters[0].nodes) - 1)
+        assert "diagram" in self.nav.tts_text.lower()
+
+    def test_chapter_tts_text(self):
+        text = self.nav.chapter_tts_text(0)
+        assert "Intro" in text
+        assert "Para 1" in text

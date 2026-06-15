@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from utils.parser import Book, Chapter, ContentNode
-from utils.tts_engine import split_raw_sentences
+from utils.table_reader import format_table_for_tts
+from utils.tts_engine import split_raw_sentences, split_raw_words
 
 
 @dataclass
@@ -13,6 +14,8 @@ class ReadingPosition:
     chapter_index: int = 0
     node_index: int = 0
     sentence_index: int = 0
+    word_index: int = 0
+    table_row_index: int = 0
 
 
 class Navigator:
@@ -42,11 +45,16 @@ class Navigator:
         node = self.current_node
         return node.text if node else ""
 
+    def _reset_sub_position(self) -> None:
+        self.position.sentence_index = 0
+        self.position.word_index = 0
+        self.position.table_row_index = 0
+
     def go_to_chapter(self, index: int) -> bool:
         if 0 <= index < len(self.book.chapters):
             self.position.chapter_index = index
             self.position.node_index = 0
-            self.position.sentence_index = 0
+            self._reset_sub_position()
             return True
         return False
 
@@ -56,19 +64,19 @@ class Navigator:
             return False
         if self.position.node_index < len(chapter.nodes) - 1:
             self.position.node_index += 1
-            self.position.sentence_index = 0
+            self._reset_sub_position()
             return True
         if self.position.chapter_index < len(self.book.chapters) - 1:
             self.position.chapter_index += 1
             self.position.node_index = 0
-            self.position.sentence_index = 0
+            self._reset_sub_position()
             return True
         return False
 
     def previous_node(self) -> bool:
         if self.position.node_index > 0:
             self.position.node_index -= 1
-            self.position.sentence_index = 0
+            self._reset_sub_position()
             return True
         if self.position.chapter_index > 0:
             self.position.chapter_index -= 1
@@ -77,7 +85,7 @@ class Navigator:
                 self.position.node_index = len(chapter.nodes) - 1
             else:
                 self.position.node_index = 0
-            self.position.sentence_index = 0
+            self._reset_sub_position()
             return True
         return False
 
@@ -89,7 +97,7 @@ class Navigator:
         for i in range(start, len(chapter.nodes)):
             if chapter.nodes[i].type == "heading":
                 self.position.node_index = i
-                self.position.sentence_index = 0
+                self._reset_sub_position()
                 return True
         return self._advance_to_next_chapter_heading()
 
@@ -100,7 +108,7 @@ class Navigator:
         for i in range(self.position.node_index - 1, -1, -1):
             if chapter.nodes[i].type == "heading":
                 self.position.node_index = i
-                self.position.sentence_index = 0
+                self._reset_sub_position()
                 return True
         return self._retreat_to_previous_chapter_heading()
 
@@ -111,7 +119,7 @@ class Navigator:
                 if node.type == "heading":
                     self.position.chapter_index = ci
                     self.position.node_index = ni
-                    self.position.sentence_index = 0
+                    self._reset_sub_position()
                     return True
         return False
 
@@ -122,7 +130,7 @@ class Navigator:
                 if chapter.nodes[ni].type == "heading":
                     self.position.chapter_index = ci
                     self.position.node_index = ni
-                    self.position.sentence_index = 0
+                    self._reset_sub_position()
                     return True
         return False
 
@@ -190,13 +198,98 @@ class Navigator:
             if node.type == "heading"
         ]
 
+    @property
+    def current_words(self) -> list[str]:
+        return split_raw_words(self.current_text)
+
+    @property
+    def current_word(self) -> str:
+        words = self.current_words
+        if not words:
+            return self.current_text
+        idx = min(self.position.word_index, len(words) - 1)
+        return words[idx]
+
+    def next_word(self) -> bool:
+        words = self.current_words
+        if not words:
+            return self.next_node()
+        if self.position.word_index < len(words) - 1:
+            self.position.word_index += 1
+            return True
+        if self.next_node():
+            self.position.word_index = 0
+            return True
+        return False
+
+    def previous_word(self) -> bool:
+        if self.position.word_index > 0:
+            self.position.word_index -= 1
+            return True
+        if self.previous_node():
+            words = self.current_words
+            self.position.word_index = max(0, len(words) - 1)
+            return True
+        return False
+
+    @property
+    def tts_text(self) -> str:
+        """Get the text to read aloud for the current node and position."""
+        node = self.current_node
+        if not node:
+            return ""
+
+        if node.type == "image":
+            alt = node.alt_text or node.text
+            return f"Image. {alt}" if alt else "Image with no description."
+
+        if node.type == "table":
+            return self._table_tts_text(node)
+
+        return self.current_text
+
+    def _table_tts_text(self, node: ContentNode) -> str:
+        rows = [r for r in node.children if r.type == "table_row"]
+        if not rows:
+            return format_table_for_tts(node)
+        idx = min(self.position.table_row_index, len(rows) - 1)
+        row = rows[idx]
+        cells = [f"Column {i + 1}: {c.text}" for i, c in enumerate(row.children)]
+        return f"Row {idx + 1}. " + ". ".join(cells) + "."
+
+    def next_table_row(self) -> bool:
+        node = self.current_node
+        if not node or node.type != "table":
+            return self.next_node()
+        rows = [r for r in node.children if r.type == "table_row"]
+        if self.position.table_row_index < len(rows) - 1:
+            self.position.table_row_index += 1
+            return True
+        return self.next_node()
+
+    def chapter_tts_text(self, chapter_index: int | None = None) -> str:
+        """Collect all readable text in a chapter for audio export."""
+        ci = chapter_index if chapter_index is not None else self.position.chapter_index
+        if ci < 0 or ci >= len(self.book.chapters):
+            return ""
+        parts: list[str] = []
+        for node in self.book.chapters[ci].nodes:
+            if node.type == "image":
+                alt = node.alt_text or node.text
+                parts.append(f"Image. {alt}" if alt else "Image.")
+            elif node.type == "table":
+                parts.append(format_table_for_tts(node))
+            elif node.text:
+                parts.append(node.text)
+        return "\n\n".join(parts)
+
     def go_to_node(self, chapter_index: int, node_index: int) -> bool:
         if 0 <= chapter_index < len(self.book.chapters):
             chapter = self.book.chapters[chapter_index]
             if 0 <= node_index < len(chapter.nodes):
                 self.position.chapter_index = chapter_index
                 self.position.node_index = node_index
-                self.position.sentence_index = 0
+                self._reset_sub_position()
                 return True
         return False
 

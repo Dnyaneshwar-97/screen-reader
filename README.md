@@ -14,6 +14,13 @@ A free, web-based accessible ebook reader built with Python and Streamlit. Desig
 - **Reading modes** — Sentence-by-sentence or paragraph-by-paragraph
 - **Heading navigation** — Sidebar heading list for quick jumps
 - **OpenDyslexic font** — Dyslexia-friendly font toggle
+- **Multi-language TTS** — Hindi, Marathi, Bengali, Tamil, and more
+- **Voice selection** — Accent variants (US, UK, India)
+- **Word-by-word mode** — Highlight and read one word at a time
+- **Table reading** — Row-by-row cell announcements
+- **Image alt-text** — Reads image descriptions aloud
+- **Export audio** — Download chapter as MP3
+- **Preference persistence** — Settings saved to URL for sharing/bookmarking
 - **Sample books** — Bundled demo content for instant testing
 - **WCAG 2.1 AA** — Accessible UI with skip links, focus indicators, ARIA
 

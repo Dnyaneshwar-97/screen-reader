@@ -18,6 +18,8 @@ class Bookmark:
     sentence_index: int
     chapter_title: str
     node_preview: str
+    word_index: int = 0
+    table_row_index: int = 0
 
 
 BOOKMARKS_KEY = "bookmarks"
@@ -39,6 +41,8 @@ def save_bookmark(nav: Navigator, book_name: str) -> Bookmark:
         chapter_index=nav.position.chapter_index,
         node_index=nav.position.node_index,
         sentence_index=nav.position.sentence_index,
+        word_index=nav.position.word_index,
+        table_row_index=nav.position.table_row_index,
         chapter_title=chapter.title if chapter else "",
         node_preview=(node.text[:80] + "…") if node and len(node.text) > 80 else (node.text if node else ""),
     )
@@ -65,6 +69,8 @@ def restore_bookmark(nav: Navigator, book_name: str) -> bool:
         chapter_index=bookmark.chapter_index,
         node_index=bookmark.node_index,
         sentence_index=bookmark.sentence_index,
+        word_index=bookmark.word_index,
+        table_row_index=bookmark.table_row_index,
     )
     return True
 

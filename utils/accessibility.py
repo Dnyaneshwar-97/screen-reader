@@ -68,17 +68,6 @@ def inject_keyboard_shortcuts() -> None:
     )
 
 
-def render_content_html(html_content: str, highlighted: bool = False) -> str:
-    """Wrap content HTML with accessibility attributes."""
-    css_class = "reader-content"
-    if highlighted:
-        css_class += " reader-highlight"
-    return (
-        f'<div class="{css_class}" role="article" aria-live="polite">'
-        f"{html_content}</div>"
-    )
-
-
 def render_sentences_html(
     sentences: list[str],
     active_index: int,
@@ -102,6 +91,50 @@ def render_sentences_html(
     tag = "h2" if node_type == "heading" else "p"
     inner = " ".join(parts)
     return f'<div class="reader-content" role="article" aria-live="polite"><{tag}>{inner}</{tag}></div>'
+
+
+    return f'<div class="reader-content" role="article" aria-live="polite"><{tag}>{inner}</{tag}></div>'
+
+
+def render_content_html(html_content: str, highlighted: bool = False) -> str:
+    """Wrap content HTML with accessibility attributes."""
+    css_class = "reader-content"
+    if highlighted:
+        css_class += " reader-highlight"
+    return (
+        f'<div class="{css_class}" role="article" aria-live="polite">'
+        f"{html_content}</div>"
+    )
+
+
+def render_words_html(words: list[str], active_index: int) -> str:
+    """Render words with the active word highlighted for learning mode."""
+    if not words:
+        return '<p class="reader-empty">No content.</p>'
+    parts: list[str] = []
+    for i, word in enumerate(words):
+        escaped = html.escape(word)
+        if i == active_index:
+            parts.append(
+                f'<span class="reader-word-highlight" aria-current="true">{escaped}</span>'
+            )
+        else:
+            parts.append(f"<span>{escaped}</span>")
+    inner = " ".join(parts)
+    return f'<div class="reader-content" role="article" aria-live="polite"><p>{inner}</p></div>'
+
+
+def render_image_html(alt_text: str, src_hint: str = "") -> str:
+    """Render image placeholder with alt text for screen readers."""
+    safe_alt = html.escape(alt_text or "Image with no description")
+    caption = html.escape(src_hint) if src_hint else ""
+    extra = f"<small>{caption}</small>" if caption else ""
+    return (
+        f'<figure class="reader-image" role="img" aria-label="{safe_alt}">'
+        f'<div class="reader-image-placeholder" aria-hidden="true">🖼️</div>'
+        f'<figcaption><strong>Image:</strong> {safe_alt}</figcaption>'
+        f"{extra}</figure>"
+    )
 
 
 def announce_message(message: str) -> None:
