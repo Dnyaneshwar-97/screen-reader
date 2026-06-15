@@ -11,7 +11,7 @@ def _make_book() -> Book:
         title="Chapter 1",
         nodes=[
             ContentNode(type="heading", level=1, text="Intro", html="<h1>Intro</h1>"),
-            ContentNode(type="paragraph", level=0, text="Para 1", html="<p>Para 1</p>"),
+            ContentNode(type="paragraph", level=0, text="Para 1. Another sentence.", html="<p>Para 1. Another sentence.</p>"),
             ContentNode(type="heading", level=2, text="Section A", html="<h2>Section A</h2>"),
             ContentNode(type="paragraph", level=0, text="Para 2", html="<p>Para 2</p>"),
         ],
@@ -37,7 +37,7 @@ class TestNavigator:
 
     def test_next_node(self):
         assert self.nav.next_node()
-        assert self.nav.current_text == "Para 1"
+        assert self.nav.current_text == "Para 1. Another sentence."
 
     def test_previous_node(self):
         self.nav.next_node()
@@ -84,3 +84,34 @@ class TestNavigator:
         self.nav.go_to_chapter(1)
         self.nav.position.node_index = 1
         assert not self.nav.next_node()
+
+    def test_current_sentences(self):
+        self.nav.position.node_index = 1
+        sentences = self.nav.current_sentences
+        assert len(sentences) >= 2
+
+    def test_next_sentence(self):
+        self.nav.position.node_index = 1
+        self.nav.position.sentence_index = 0
+        assert self.nav.next_sentence()
+        assert self.nav.position.sentence_index == 1
+
+    def test_previous_sentence(self):
+        self.nav.position.node_index = 1
+        self.nav.position.sentence_index = 1
+        assert self.nav.previous_sentence()
+        assert self.nav.position.sentence_index == 0
+
+    def test_headings_in_chapter(self):
+        headings = self.nav.headings_in_chapter()
+        assert len(headings) == 2
+        assert headings[0][1].text == "Intro"
+
+    def test_go_to_node(self):
+        assert self.nav.go_to_node(0, 1)
+        assert self.nav.position.node_index == 1
+
+    def test_progress_label(self):
+        label = self.nav.progress_label()
+        assert "Book" in label
+        assert "Chapter" in label

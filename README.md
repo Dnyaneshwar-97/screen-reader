@@ -9,7 +9,11 @@ A free, web-based accessible ebook reader built with Python and Streamlit. Desig
 - **Chapter navigation** — Sidebar chapter list with progress tracking
 - **High-contrast themes** — Default Light, Dark Mode, High Contrast, Sepia
 - **Font size control** — 12px to 36px
-- **Keyboard shortcuts** — Full keyboard navigation (Space, arrows, H, T, 1-9)
+- **Sentence highlighting** — Highlights the sentence currently being read aloud
+- **Bookmarks** — Save and resume reading position per book
+- **Reading modes** — Sentence-by-sentence or paragraph-by-paragraph
+- **Heading navigation** — Sidebar heading list for quick jumps
+- **OpenDyslexic font** — Dyslexia-friendly font toggle
 - **Sample books** — Bundled demo content for instant testing
 - **WCAG 2.1 AA** — Accessible UI with skip links, focus indicators, ARIA
 

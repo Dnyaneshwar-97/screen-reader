@@ -62,6 +62,7 @@ def main() -> None:
 | `H` / `Shift+H` | Next / Previous heading |
 | `+` / `-` | Increase / Decrease font size |
 | `T` | Cycle theme |
+| `B` | Save bookmark |
 | `1-9` | Jump to chapter |
         """
     )

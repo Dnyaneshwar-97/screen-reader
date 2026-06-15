@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from utils.parser import Book, Chapter, ContentNode
+from utils.tts_engine import split_raw_sentences
 
 
 @dataclass
@@ -143,6 +144,69 @@ class Navigator:
                 passed += self.position.node_index + 1
                 break
         return passed / total_nodes
+
+    @property
+    def current_sentences(self) -> list[str]:
+        return split_raw_sentences(self.current_text)
+
+    @property
+    def current_sentence(self) -> str:
+        sentences = self.current_sentences
+        if not sentences:
+            return self.current_text
+        idx = min(self.position.sentence_index, len(sentences) - 1)
+        return sentences[idx]
+
+    def next_sentence(self) -> bool:
+        sentences = self.current_sentences
+        if not sentences:
+            return self.next_node()
+        if self.position.sentence_index < len(sentences) - 1:
+            self.position.sentence_index += 1
+            return True
+        if self.next_node():
+            self.position.sentence_index = 0
+            return True
+        return False
+
+    def previous_sentence(self) -> bool:
+        if self.position.sentence_index > 0:
+            self.position.sentence_index -= 1
+            return True
+        if self.previous_node():
+            sentences = self.current_sentences
+            self.position.sentence_index = max(0, len(sentences) - 1)
+            return True
+        return False
+
+    def headings_in_chapter(self, chapter_index: int | None = None) -> list[tuple[int, ContentNode]]:
+        """Return (node_index, heading) pairs for a chapter."""
+        ci = chapter_index if chapter_index is not None else self.position.chapter_index
+        if ci < 0 or ci >= len(self.book.chapters):
+            return []
+        return [
+            (i, node)
+            for i, node in enumerate(self.book.chapters[ci].nodes)
+            if node.type == "heading"
+        ]
+
+    def go_to_node(self, chapter_index: int, node_index: int) -> bool:
+        if 0 <= chapter_index < len(self.book.chapters):
+            chapter = self.book.chapters[chapter_index]
+            if 0 <= node_index < len(chapter.nodes):
+                self.position.chapter_index = chapter_index
+                self.position.node_index = node_index
+                self.position.sentence_index = 0
+                return True
+        return False
+
+    def progress_label(self) -> str:
+        chapter = self.current_chapter
+        if not chapter or not chapter.nodes:
+            return "0%"
+        book_pct = int(self.progress_in_book() * 100)
+        chapter_pct = int(self.progress_in_chapter() * 100)
+        return f"Book {book_pct}% · Chapter {chapter_pct}% · Section {self.position.node_index + 1}/{len(chapter.nodes)}"
 
     def chapter_titles(self) -> list[str]:
         return [c.title for c in self.book.chapters]

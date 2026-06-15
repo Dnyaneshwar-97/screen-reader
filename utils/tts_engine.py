@@ -22,12 +22,20 @@ class AudioChunk:
     mime_type: str = "audio/mpeg"
 
 
-def split_into_sentences(text: str) -> list[str]:
-    """Split text into sentence-level chunks for responsive playback."""
+def split_raw_sentences(text: str) -> list[str]:
+    """Split text into individual sentences without chunk merging."""
     text = text.strip()
     if not text:
         return []
-    sentences = SENTENCE_SPLIT.split(text)
+    parts = SENTENCE_SPLIT.split(text)
+    return [p.strip() for p in parts if p.strip()] or [text]
+
+
+def split_into_sentences(text: str) -> list[str]:
+    """Split text into sentence-level chunks for responsive playback."""
+    sentences = split_raw_sentences(text)
+    if not sentences:
+        return []
     chunks: list[str] = []
     buffer = ""
     for sentence in sentences:

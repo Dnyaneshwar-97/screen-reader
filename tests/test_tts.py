@@ -10,6 +10,7 @@ from utils.tts_engine import (
     generate_chunks,
     generate_speech,
     split_into_sentences,
+    split_raw_sentences,
 )
 
 FAKE_MP3 = b"\xff\xfb\x90\x00" + b"\x00" * 100
@@ -28,6 +29,10 @@ class TestSplitSentences:
     def test_single_sentence(self):
         result = split_into_sentences("Hello world.")
         assert result == ["Hello world."]
+
+    def test_raw_sentences(self):
+        result = split_raw_sentences("First sentence. Second sentence! Third?")
+        assert len(result) == 3
 
     def test_multiple_sentences(self):
         result = split_into_sentences("First sentence. Second sentence! Third?")

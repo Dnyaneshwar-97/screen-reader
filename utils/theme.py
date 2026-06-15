@@ -56,6 +56,20 @@ def get_theme_css(theme_name: str, font_size: int, use_dyslexic_font: bool = Fal
     return f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible&display=swap');
+    @font-face {{
+        font-family: 'OpenDyslexic';
+        src: url('https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/woff/OpenDyslexic-Regular.woff') format('woff');
+        font-weight: normal;
+        font-style: normal;
+        font-display: swap;
+    }}
+    @font-face {{
+        font-family: 'OpenDyslexic';
+        src: url('https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/woff/OpenDyslexic-Bold.woff') format('woff');
+        font-weight: bold;
+        font-style: normal;
+        font-display: swap;
+    }}
 
     :root {{
         --reader-bg: {theme["background"]};
@@ -104,6 +118,23 @@ def get_theme_css(theme_name: str, font_size: int, use_dyslexic_font: bool = Fal
         padding: 2px 4px;
         border-radius: 3px;
         outline: 2px solid var(--reader-accent);
+    }}
+
+    .reader-sentence-highlight {{
+        background-color: var(--reader-highlight) !important;
+        padding: 3px 6px;
+        border-radius: 4px;
+        outline: 3px solid var(--reader-accent);
+        font-weight: 600;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+    }}
+
+    .reader-progress-label {{
+        font-size: 0.9rem;
+        color: var(--reader-text);
+        margin-bottom: 0.5rem;
+        font-weight: 600;
     }}
 
     .skip-link {{

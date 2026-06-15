@@ -16,10 +16,15 @@ apply_theme()
 def _load_book(name: str, book) -> None:
     st.session_state.current_book = book
     st.session_state.current_book_name = name
-    st.session_state.navigator = Navigator(book)
+    nav = Navigator(book)
+    st.session_state.navigator = nav
     st.session_state.tts_playing = False
     st.session_state.tts_audio = None
     st.session_state.tts_cache_key = None
+
+    from utils.bookmarks import has_bookmark, restore_bookmark
+    if has_bookmark(name):
+        restore_bookmark(nav, name)
 
 
 def main() -> None:
