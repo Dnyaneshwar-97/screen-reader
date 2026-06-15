@@ -1,0 +1,23 @@
+/* Accessible Reader custom styles — applied via utils/theme.py injection */
+
+.reader-content {
+    transition: font-size 0.2s ease;
+}
+
+.reader-content:focus-within {
+    outline: 2px dashed var(--reader-accent, #4a90d9);
+    outline-offset: 4px;
+}
+
+@media (max-width: 768px) {
+    .reader-content {
+        padding: 1rem;
+        font-size: calc(var(--reader-font-size, 18px) * 0.9);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reader-content {
+        transition: none;
+    }
+}
