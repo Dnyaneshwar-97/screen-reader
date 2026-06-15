@@ -161,16 +161,36 @@ def audio_to_base64(audio_bytes: bytes) -> str:
     return base64.b64encode(audio_bytes).decode("utf-8")
 
 
-def audio_player_html(audio_bytes: bytes, autoplay: bool = True) -> str:
+def audio_player_html(
+    audio_bytes: bytes,
+    autoplay: bool = True,
+    continuous: bool = False,
+) -> str:
     """Return an HTML audio element with base64-encoded MP3."""
     if not audio_bytes:
         return ""
     b64 = audio_to_base64(audio_bytes)
     autoplay_attr = "autoplay" if autoplay else ""
+    onended_js = ""
+    if continuous:
+        onended_js = """
+        <script>
+        (function() {
+            const player = document.getElementById('tts-player');
+            if (!player || player.__continuousHooked) return;
+            player.__continuousHooked = true;
+            player.addEventListener('ended', function() {
+                const btn = [...document.querySelectorAll('button')]
+                    .find(b => b.getAttribute('title') === 'btn-auto-advance');
+                if (btn) btn.click();
+            });
+        })();
+        </script>
+        """
     return (
-        f'<audio id="tts-player" controls {autoplay_attr} '
-        f'style="width:100%;" aria-label="Text-to-speech playback">'
+        f'<audio id="tts-player" {autoplay_attr} '
+        f'aria-label="Text-to-speech playback">'
         f'<source src="data:audio/mpeg;base64,{b64}" type="audio/mpeg">'
-        f"Your browser does not support audio playback."
         f"</audio>"
+        f"{onended_js}"
     )

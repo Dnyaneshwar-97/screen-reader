@@ -98,8 +98,14 @@ def get_theme_css(theme_name: str, font_size: int, use_dyslexic_font: bool = Fal
         background-color: var(--reader-bg);
         padding: 1.5rem;
         border-radius: 8px;
-        max-width: 800px;
+        max-width: 100%;
         margin: 0 auto;
+    }}
+
+    .reader-content-main {{
+        min-height: 65vh;
+        max-width: 100% !important;
+        width: 100%;
     }}
 
     .reader-content h1, .reader-content h2, .reader-content h3,
